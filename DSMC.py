@@ -13,6 +13,7 @@ TEMP = 20. * 10 ** -6
 max_grid_width = 1.0
 CELLS_PER_AXIS = 2
 NUM_OF_CELLS = CELLS_PER_AXIS ** 3
+N_TH = 5
 
 def get_gaussian_point( mean,
 						std ):
@@ -94,60 +95,56 @@ def collide_atoms( pos,
 	               num_atoms,
 	               alpha,
 	               atom_count,
+	               num_cells,
 	               level ):
 
-	for cell in range(NUM_OF_CELLS):
-
+	for cell in range(num_cells):
+		print( cell ) 
 		new_level = level + 1
 		
-		# l_cell_start_end = cell_start_end[cell]
-		
-		# num_atoms_in_cell  = get_number_of_atoms(l_cell_start_end)
+		l_cell_start_end = cell_start_end[cell]
+		l_cell_id = cell_id[l_cell_start_end[0]:l_cell_start_end[1]+1]
+		l_atom_id = atom_id[l_cell_start_end[0]:l_cell_start_end[1]+1]
+		num_atoms_in_cell  = get_number_of_atoms( l_cell_start_end )
 		
 		sub_cell_width = cell_width / CELLS_PER_AXIS
+		sub_cell_min   = cell_min + sub_cell_width * get_sub_cell_index( cell,
+																         CELLS_PER_AXIS)
+		sub_cell_max   = sub_cell_min + cell_width
 
-		sub_cell_min = cell_min + sub_cell_width * get_sub_cell_index( cell,
-																       CELLS_PER_AXIS)
-		sub_cell_max = sub_cell_min + cell_width
-		
-		if new_level > 2:
-			return
-		else:
+		if num_atoms_in_cell > N_TH:
 			# print( "cell{0}-{1}, sub_cell_min = {2}".format(cell,new_level,sub_cell_min) )
-			collide_atoms( pos,
-	               	   vel,
-	                   sub_cell_min,
-	                   sub_cell_width,
-	                   dt,
-	                   sig_vr_max,
-	                   cell_start_end,
-	                   cell_id,
-	                   atom_id,
-	                   number_of_collisions,
-	                   num_atoms,
-	                   alpha,
-	                   atom_count,
-	                   new_level )
+			set_cell_id( pos,
+				 		 l_cell_id,
+				 		 l_atom_id,
+				 		 sub_cell_min,
+				 		 sub_cell_width,
+				 		 CELLS_PER_AXIS,
+				 		 num_atoms_in_cell )
 
-		# if num_atoms_in_cell > threshold:
-		# 	sort( pos,
-	 #          atom_id )
-		# 	collide_atoms( pos,
-	 #               vel,
-	 #               cell_min,
-	 #               cell_width,
-	 #               dt,
-	 #               sig_vr_max,
-	 #               cell_start_end,
-	 #               cell_id,
-	 #               atom_id,
-	 #               number_of_collisions,
-	 #               num_atoms,
-	 #               alpha,
-	 #               atom_count,
-	 #               level )
-		# else:
-		# 	do_a_collision()
+			ind = np.lexsort((l_atom_id, l_cell_id))
+			l_atom_id = l_atom_id[ind]
+			l_cell_id = l_cell_id[ind]
+			print( l_cell_id )
+
+			# collide_atoms( pos,
+	  #              	   vel,
+	  #                  sub_cell_min,
+	  #                  sub_cell_width,
+	  #                  dt,
+	  #                  sig_vr_max,
+	  #                  cell_start_end,
+	  #                  cell_id,
+	  #                  atom_id,
+	  #                  number_of_collisions,
+	  #                  num_atoms,
+	  #                  alpha,
+	  #                  atom_count,
+	  #                  NUM_OF_CELLS,
+	  #                  new_level )
+		else:
+			return
+			# do_a_collision()
 
 	return
 
@@ -161,10 +158,10 @@ def set_cell_id( pos,
 
 	for atom in range( number_of_atoms ):
 
-		cell_index = get_cell_index( pos[atom],
+		cell_index = get_cell_index( pos[atom_id[atom]],
 								     cell_min,
 								     cell_width )
-		print("{0}, {1}, {2}".format(pos[atom], cell_min, cell_width) )
+
 		cell_id[atom] = get_cell_id( cell_index,
 								     cells_per_axis )
 
@@ -202,11 +199,22 @@ def get_sub_cell_index( cell_id,
 
 	return index
 
+def get_number_of_atoms( cell_start_end ):
+
+	number_of_atoms  = cell_start_end[1] - cell_start_end[0] + 1
+	
+	if (cell_start_end[0] < 0 or cell_start_end[1] < 0):
+		number_of_atoms = 0
+
+	return number_of_atoms
+
 def main():
 
 	pos, vel, atom_id = generate_initial_dist( N_ATOMS,
 			           		   				   TEMP )
 	
+	print( len(atom_id) )
+
 	cell_id = np.zeros(N_ATOMS,).astype(np.int)
 	set_cell_id( pos,
 				 cell_id,
@@ -216,15 +224,9 @@ def main():
 				 CELLS_PER_AXIS,
 				 N_ATOMS )
 
-	# print( pos )
-	# print( cell_id )
-	
-	print( atom_id )
-
 	ind = np.lexsort((atom_id, cell_id))
-
-	print( atom_id[ind] )
-	print( cell_id[ind] )
+	atom_id = atom_id[ind]
+	cell_id = cell_id[ind]
 
 	collide_atoms( pos,
 	               vel,
@@ -232,13 +234,14 @@ def main():
 	               np.array([10.,10.,10.]),
 	               None,
 	               None,
-	               None,
+	               np.array([[0,N_ATOMS-1],]),
 	               cell_id,
 	               atom_id,
 	               0.,
 	               N_ATOMS,
 	               1.,
 	               0,
+	               1,
 	               0 )
 
 	# print( atom_id )
