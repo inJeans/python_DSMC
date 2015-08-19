@@ -13,7 +13,7 @@ TEMP = 20. * 10 ** -6
 max_grid_width = 1.0
 CELLS_PER_AXIS = 2
 NUM_OF_CELLS = CELLS_PER_AXIS ** 3
-N_TH = 5
+N_TH = 2
 
 def get_gaussian_point( mean,
 						std ):
@@ -95,23 +95,21 @@ def collide_atoms( pos,
 	               num_atoms,
 	               alpha,
 	               atom_count,
-	               num_cells,
+	               cells_per_axis,
 	               level ):
-
+	num_cells = cells_per_axis ** 3
 	for cell in range(num_cells):
-		print( cell ) 
+		print( "cell - {0}".format(cell) ) 
 		new_level = level + 1
-		
 		l_cell_start_end = cell_start_end[cell]
 		l_cell_id = cell_id[l_cell_start_end[0]:l_cell_start_end[1]+1]
 		l_atom_id = atom_id[l_cell_start_end[0]:l_cell_start_end[1]+1]
 		num_atoms_in_cell  = get_number_of_atoms( l_cell_start_end )
-		
-		sub_cell_width = cell_width / CELLS_PER_AXIS
+		sub_cell_width = cell_width / cells_per_axis
 		sub_cell_min   = cell_min + sub_cell_width * get_sub_cell_index( cell,
 																         CELLS_PER_AXIS)
-		sub_cell_max   = sub_cell_min + cell_width
-
+		sub_cell_max   = sub_cell_min + sub_cell_width
+		print( "num_atoms_in_cell - {0}".format(num_atoms_in_cell) )
 		if num_atoms_in_cell > N_TH:
 			# print( "cell{0}-{1}, sub_cell_min = {2}".format(cell,new_level,sub_cell_min) )
 			set_cell_id( pos,
@@ -119,31 +117,39 @@ def collide_atoms( pos,
 				 		 l_atom_id,
 				 		 sub_cell_min,
 				 		 sub_cell_width,
-				 		 CELLS_PER_AXIS,
+				 		 cells_per_axis,
 				 		 num_atoms_in_cell )
 
 			ind = np.lexsort((l_atom_id, l_cell_id))
 			l_atom_id = l_atom_id[ind]
 			l_cell_id = l_cell_id[ind]
-			print( l_cell_id )
+			print( "l_cell_id - {0}".format(l_cell_id) )
+			print( "sub_cell_min = {0}\nsub_cell_width = {1}\nsub_cell_max = {2}".format(sub_cell_min,sub_cell_width,sub_cell_max) )
+			for atom in range(num_atoms_in_cell):
+				print( "pos[{0}] = {1} - cell_id = {2}".format(atom,pos[l_atom_id[atom]],l_cell_id[atom]))
+			sub_cell_start_end = -1 * np.ones((NUM_OF_CELLS,2)).astype(np.int)
+			get_cell_start_end( l_cell_id,
+					    		sub_cell_start_end,
+					    		num_atoms_in_cell )
+			print( "sub_cell_start_end - {0}".format(sub_cell_start_end) )
 
-			# collide_atoms( pos,
-	  #              	   vel,
-	  #                  sub_cell_min,
-	  #                  sub_cell_width,
-	  #                  dt,
-	  #                  sig_vr_max,
-	  #                  cell_start_end,
-	  #                  cell_id,
-	  #                  atom_id,
-	  #                  number_of_collisions,
-	  #                  num_atoms,
-	  #                  alpha,
-	  #                  atom_count,
-	  #                  NUM_OF_CELLS,
-	  #                  new_level )
+			collide_atoms( pos,
+	               	       vel,
+	                       sub_cell_min,
+	                       sub_cell_width,
+	                       dt,
+	                       sig_vr_max,
+	                       sub_cell_start_end,
+	                       l_cell_id,
+	                       l_atom_id,
+	                       number_of_collisions,
+	                       num_atoms_in_cell,
+	                       alpha,
+	                       atom_count,
+	                       CELLS_PER_AXIS,
+	                       new_level )
 		else:
-			return
+			print( "Collide - BOOM!" )
 			# do_a_collision()
 
 	return
@@ -199,6 +205,25 @@ def get_sub_cell_index( cell_id,
 
 	return index
 
+def get_cell_start_end( cell_id,
+					    cell_start_end,
+					    number_of_atoms ):
+
+	for atom in range( number_of_atoms ):
+		# Find the beginning of the cell
+		if( atom == 0 ):
+			cell_start_end[cell_id[atom]][0] = 0
+		elif( cell_id[atom] != cell_id[atom-1] ):
+			cell_start_end[cell_id[atom]][0] = atom
+		
+		#Find the end of the cell
+		if( atom == number_of_atoms - 1 ):
+			cell_start_end[cell_id[atom]][1] = atom
+		elif( cell_id[atom] != cell_id[atom+1] ):
+			cell_start_end[cell_id[atom]][1] = atom
+	
+	return
+
 def get_number_of_atoms( cell_start_end ):
 
 	number_of_atoms  = cell_start_end[1] - cell_start_end[0] + 1
@@ -213,7 +238,10 @@ def main():
 	pos, vel, atom_id = generate_initial_dist( N_ATOMS,
 			           		   				   TEMP )
 	
-	print( len(atom_id) )
+	cell_min = np.array( [min(pos[:,0]), min(pos[:,1]), min(pos[:,2])] ) - 0.1
+	cell_max = np.array( [max(pos[:,0]), max(pos[:,1]), max(pos[:,2])] ) + 0.1
+	cell_width = cell_max - cell_min
+	print("orig_cell_min = {0}, orig_cell_max = {1}".format( cell_min, cell_max ) )
 
 	cell_id = np.zeros(N_ATOMS,).astype(np.int)
 	set_cell_id( pos,
@@ -230,8 +258,8 @@ def main():
 
 	collide_atoms( pos,
 	               vel,
-	               np.array([-5.,-5.,-5.]),
-	               np.array([10.,10.,10.]),
+	               cell_min,
+	               cell_width,
 	               None,
 	               None,
 	               np.array([[0,N_ATOMS-1],]),
